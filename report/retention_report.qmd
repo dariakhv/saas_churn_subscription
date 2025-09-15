@@ -80,7 +80,7 @@ Retention declines steeply in the first few months for each cohort, indicating t
 ## Retention Curves by Subscription Type
 
 **Basic**  
-![](../img/avg_ret_curve.png){width=80%}  
+![](../img/ret_curve_subscription_type.png){width=80%}  
 
 We can observe similar trend as per cohort general analytics. However, since the dataset is synthetic, curves across subscription tiers look very similar if not identical. In real-world data, Basic plans typically show the sharpest early churn, while Premium customers retain longer.  
 
