@@ -3,7 +3,7 @@
 This project analyzes fictional customer retention and churn patterns, showcasing end-to-end data analytics skills from **data management with PostgreSQL**, to **SQL-based cohort analysis**, **Python-based visualization**, and **predictive modeling with XGBoost**.  
 
 ## Report  
-Business case study and report can be found [HERE](./report/retention_report.html).
+Business case study and report can be found [HERE](https://dariakhv.github.io/saas_churn_subscription/report/retention_report.html).
 
 ## Project Overview  
 - **Business Problem:** High early churn in SaaS subscriptions threatens long-term revenue growth.  
