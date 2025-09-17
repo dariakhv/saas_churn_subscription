@@ -54,6 +54,7 @@ The data used is a combination of SaaS subscription dataset sourced from Kaggle,
 - **Storage & monitoring:** Using pgAdmin allowed me to write raw SQL queries, validate cohorts directly in SQL, and monitor data health before pulling into Python for analysis.
 
 This setup was done with a purpos to enforce end-to-end ownership: from raw data ingestion to structured relational storage, ensuring queries scale and analysis is reproducible.
+![](../img/database.png)
 
 ## Defined KPIs
 
@@ -68,7 +69,7 @@ The project pipeline was intentionally modular to reflect real-world data workfl
 1. **Ingest** data into pgAdmin database  `data/.`
 2. **Process** with SQL queries for cohort-based retention metrics, ensuring transparency and reusability `sql/.`
 3. **Analyze & Vizualize** Pulled SQL results into Jupyter Notebooks using Python for deeper aggregation, exploratory analysis, and business-ready visualization. `notebooks/.`
-5. **Predictive Modeling:** Trained an XGBoost churn prediction model to proactively flag at-risk subscribers with 98% recall score (recall was chosen as the key metric as falsely mislabelling a churned customer as non-churn carries higher risks for the business). `src/.`
+5. **Predictive Modeling:** Trained an ensemble Random Forest churn prediction model to proactively flag at-risk subscribers with 98% recall score (recall was chosen as the key metric as falsely mislabelling a churned customer as non-churn carries higher risks for the business). `src/.`
 
 # Results
 
@@ -95,7 +96,7 @@ However, subscription type alone does not explain churn risk — behavioral sign
 1. Critical Period: Retention curves show the first 1–3 months are the riskiest for churn. Focused onboarding, guided product tours, and early engagement campaigns (emails, in-app nudges) should be prioritized.
 2. Tier Strategy: While synthetic data limited variability, industry benchmarks suggest Standard-tier users are prime candidates for upsell to Premium through added features or loyalty discounts.
 3. Customer Support Friction: Strong correlation between high support call volume and churn suggests dissatisfaction is a major driver. Review support operations — especially ticket resolution times, escalation workflows, and self-service resources.
-4. Predictive Targeting: The XGBoost churn model identifies at-risk users before they churn, enabling proactive retention campaigns. Continuous drift monitoring should be applied to keep predictions aligned with evolving user behavior.
+4. Predictive Targeting: The Random Forest churn model identifies at-risk users before they churn, enabling proactive retention campaigns. Continuous drift monitoring should be applied to keep predictions aligned with evolving user behavior.
 5. Data Infrastructure: Cohort analysis in PostgreSQL provides scalable retention tracking, while visualization in Python ensures business teams can monitor KPIs intuitively. This pipeline demonstrates a repeatable process for ongoing subscriber health monitoring
 
 

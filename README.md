@@ -1,6 +1,6 @@
 # SaaS Customer Retention & Churn Analysis  
 
-This project analyzes fictional customer retention and churn patterns, showcasing end-to-end data analytics skills from **data management with PostgreSQL**, to **SQL-based cohort analysis**, **Python-based visualization**, and **predictive modeling with XGBoost**.  
+This project analyzes fictional customer retention and churn patterns, showcasing end-to-end data analytics skills from **data management with PostgreSQL**, to **SQL-based cohort analysis**, **Python-based visualization**, and **predictive modeling with Random Forest**.  
 
 ## Report  
 Business case study and report can be found [HERE](https://dariakhv.github.io/saas_churn_subscription/report/retention_report.html).
@@ -13,7 +13,7 @@ Business case study and report can be found [HERE](https://dariakhv.github.io/sa
 - **Approach:**  
   1. Load data into **PostgreSQL (pgAdmin)** for storage & cohort queries  
   2. Analyze retention patterns with **SQL + Python (pandas, matplotlib, seaborn)**  
-  3. Model churn risk using **XGBoost** for proactive customer targeting  
+  3. Model churn risk using **Random Forest** for proactive customer targeting  
   4. Present findings in a structured **Quarto Report (HTML)**  
 
 ## Key Results  
