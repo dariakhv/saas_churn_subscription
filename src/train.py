@@ -5,25 +5,23 @@ import json
 from typing import Dict, Tuple, Any
 from pathlib import Path
 import pickle
+import os
+
+from scipy.stats import loguniform, randint
+
 
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import cross_val_score, GridSearchCV
+from sklearn.model_selection import cross_validate, cross_val_score, GridSearchCV
 from sklearn.metrics import (
-    classification_report, confusion_matrix, roc_auc_score,
-    precision_recall_fscore_support, accuracy_score
+    classification_report, confusion_matrix, 
+    ConfusionMatrixDisplay, 
+    make_scorer, recall_score, f1_score
 )
-
-try:
-    import xgboost as xgb
-    XGBOOST_AVAILABLE = True
-except ImportError:
-    XGBOOST_AVAILABLE = False
-    logging.warning("XGBoost not available. Install with: pip install xgboost")
-
-from .config import MODEL_PARAMS, MODEL_CONFIG, MODEL_FILE, METRICS_FILE, FEATURE_CONFIG
-from .extract import DataExtractor
-from .preprocess import DataPreprocessor
+from sklearn.model_selection import RandomizedSearchCV
+from config import MODEL_PARAMS, MODEL_CONFIG, MODEL_FILE, METRICS_FILE, FEATURE_CONFIG
+from extract import DataExtractor
+from preprocess import DataPreprocessor
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -33,207 +31,113 @@ class ModelTrainer:
     def __init__(self):
         self.models = {}
         self.best_model = None
-        self.best_model_name = None
         self.feature_importance = None
-        self.metrics = {}
+        self.metrics = None
         
-    def train_random_forest(self, X_train: pd.DataFrame, y_train: pd.Series) -> RandomForestClassifier:
-        logger.info("Training Random Forest model...")
-        rf = RandomForestClassifier(**MODEL_PARAMS['random_forest'])
-        rf.fit(X_train, y_train)
-        self.models['random_forest'] = rf
-        logger.info("Random Forest training completed")
-        return rf
-    
-    def train_xgboost(self, X_train: pd.DataFrame, y_train: pd.Series):
-        if not XGBOOST_AVAILABLE:
-            logger.warning("XGBoost not available, skipping XGBoost training")
-            return None
-        logger.info("Training XGBoost model...")
-        xgb_model = xgb.XGBClassifier(**MODEL_PARAMS['xgboost'])
-        xgb_model.fit(X_train, y_train)
-        self.models['xgboost'] = xgb_model
-        logger.info("XGBoost training completed")
-        return xgb_model
-    
-    def train_logistic_regression(self, X_train: pd.DataFrame, y_train: pd.Series) -> LogisticRegression:
-        logger.info("Training Logistic Regression model...")
-        lr = LogisticRegression(**MODEL_PARAMS['logistic_regression'])
-        lr.fit(X_train, y_train)
-        self.models['logistic_regression'] = lr
-        logger.info("Logistic Regression training completed")
-        return lr
-    
-    def evaluate_model(self, model: Any, X: pd.DataFrame, y: pd.Series, 
-                      dataset_name: str) -> Dict[str, float]:
-        y_pred = model.predict(X)
-        y_pred_proba = model.predict_proba(X)[:, 1] if hasattr(model, 'predict_proba') else None
-        
-        metrics = {
-            'accuracy': accuracy_score(y, y_pred),
-            'precision': precision_recall_fscore_support(y, y_pred, average='weighted')[0],
-            'recall': precision_recall_fscore_support(y, y_pred, average='weighted')[1],
-            'f1_score': precision_recall_fscore_support(y, y_pred, average='weighted')[2]
+    def hyperparameter_optimization(self, pipe, X_train, y_train):
+        param_grid = {
+            "randomforestclassifier__n_estimators": randint(100, 1000),          # number of trees
+            "randomforestclassifier__max_depth": randint(3, 10),                 # depth of trees      
+            "randomforestclassifier__max_features": ["sqrt", "log2", None],      # number of features at each split               
+            "randomforestclassifier__class_weight": [None, "balanced"],          # balance classes or not
+            "randomforestclassifier__max_samples": loguniform(0.5, 1.0)          # fraction of dataset if bootstrap=True
         }
-        
-        if y_pred_proba is not None:
-            metrics['roc_auc'] = roc_auc_score(y, y_pred_proba)
-        
-        cm = confusion_matrix(y, y_pred)
-        metrics['confusion_matrix'] = cm.tolist()
-        report = classification_report(y, y_pred, output_dict=True)
-        metrics['classification_report'] = report
-        
-        logger.info(f"{dataset_name} metrics for {type(model).__name__}:")
-        logger.info(f"  Accuracy: {metrics['accuracy']:.4f}")
-        logger.info(f"  Precision: {metrics['precision']:.4f}")
-        logger.info(f"  Recall: {metrics['recall']:.4f}")
-        logger.info(f"  F1-Score: {metrics['f1_score']:.4f}")
-        if 'roc_auc' in metrics:
-            logger.info(f"  ROC AUC: {metrics['roc_auc']:.4f}")
-        
-        return metrics
-    
-    def cross_validate_model(self, model: Any, X: pd.DataFrame, y: pd.Series) -> float:
-        cv_scores = cross_val_score(
-            model, X, y, 
-            cv=MODEL_CONFIG['cv_folds'], 
-            scoring='f1_weighted'
+
+        random_search = RandomizedSearchCV(
+            pipe,
+            param_grid,
+            n_iter=10,
+            n_jobs=-1,
+            random_state=123,
+            return_train_score=True,
+            scoring=make_scorer(recall_score)
         )
-        mean_cv_score = cv_scores.mean()
-        std_cv_score = cv_scores.std()
-        logger.info(f"Cross-validation F1-score: {mean_cv_score:.4f} (+/- {std_cv_score * 2:.4f})")
-        return mean_cv_score
-    
-    def select_best_model(self, X_val: pd.DataFrame, y_val: pd.Series) -> Tuple[Any, str]:
-        logger.info("Selecting best model based on validation performance...")
-        best_score = -1
-        best_model = None
-        best_model_name = None
         
-        for name, model in self.models.items():
-            metrics = self.evaluate_model(model, X_val, y_val, "Validation")
-            f1_score = metrics['f1_score']
-            
-            if f1_score > best_score:
-                best_score = f1_score
-                best_model = model
-                best_model_name = name
-        
-        self.best_model = best_model
-        self.best_model_name = best_model_name
-        logger.info(f"Best model: {best_model_name} with F1-score: {best_score:.4f}")
-        return best_model, best_model_name
+        random_search.fit(X_train, y_train)
+
+        print("Best Recall Score:", random_search.best_score_)
+        print("Best Estimator:", random_search.best_estimator_)
+
+        # Save the model
+        with open("models/RF_best_model.pkl", "wb") as file:
+            pickle.dump(random_search.best_estimator_, file)
     
-    def get_feature_importance(self, model: Any, preprocessor=None) -> pd.DataFrame:
-        if hasattr(model, 'feature_importances_'):
-            importance = model.feature_importances_
-        elif hasattr(model, 'coef_'):
-            importance = np.abs(model.coef_[0])
+        self.best_model = random_search.best_estiamtor_
+        return self.best_model
+
+    def train_model(self, model, X_train, y_train):
+        
+        model.fit(X_train, y_train)
+
+        # If pipeline, extract feature importances from last step
+        if hasattr(self.best_model, "named_steps"):
+            clf = self.best_model.named_steps.get("clf")
         else:
-            logger.warning("Model doesn't have feature importance or coefficients")
-            return pd.DataFrame()
+            clf = self.best_model
+
+        if hasattr(clf, "feature_importances_"):
+            self.feature_importance = clf.feature_importances_
         
-        if preprocessor is None or not hasattr(preprocessor, 'feature_names'):
-            logger.warning("Preprocessor not available, using generic feature names")
-            feature_names = [f'feature_{i}' for i in range(len(importance))]
-        else:
-            feature_names = preprocessor.feature_names
-        
-        importance_df = pd.DataFrame({
-            'feature': feature_names,
-            'importance': importance
-        }).sort_values('importance', ascending=False)
-        
-        self.feature_importance = importance_df
-        return importance_df
-    
-    def save_model(self, model: Any, filepath: Path) -> None:
-        try:
-            with open(filepath, 'wb') as f:
-                pickle.dump(model, f)
-            logger.info(f"Model saved to {filepath}")
-        except Exception as e:
-            logger.error(f"Error saving model: {str(e)}")
-            raise
-    
-    def save_preprocessor(self, preprocessor: Any, filepath: Path) -> None:
-        try:
-            with open(filepath, 'wb') as f:
-                pickle.dump(preprocessor, f)
-            logger.info(f"Preprocessor saved to {filepath}")
-        except Exception as e:
-            logger.error(f"Error saving preprocessor: {str(e)}")
-            raise
-    
-    def save_metrics(self, filepath: Path) -> None:
-        try:
-            with open(filepath, 'w') as f:
-                json.dump(self.metrics, f, indent=2, default=str)
-            logger.info(f"Metrics saved to {filepath}")
-        except Exception as e:
-            logger.error(f"Error saving metrics: {str(e)}")
-            raise
-    
-    def train_all_models(self, X_train: pd.DataFrame, y_train: pd.Series,
-                        X_val: pd.DataFrame, y_val: pd.Series,
-                        X_test: pd.DataFrame, y_test: pd.Series,
-                        preprocessor=None) -> Dict[str, Any]:
-        logger.info("Starting model training pipeline...")
-        self.train_random_forest(X_train, y_train)
-        if XGBOOST_AVAILABLE:
-            self.train_xgboost(X_train, y_train)
-        self.train_logistic_regression(X_train, y_train)
-        
-        cv_scores = {}
-        for name, model in self.models.items():
-            cv_scores[name] = self.cross_validate_model(model, X_train, y_train)
-        
-        best_model, best_model_name = self.select_best_model(X_val, y_val)
-        test_metrics = self.evaluate_model(best_model, X_test, y_test, "Test")
-        feature_importance = self.get_feature_importance(best_model, preprocessor)
-        
+        model_path = "models/optim_model.pkl"
+        os.makedirs(os.path.dirname(model_path), exist_ok=True)
+        pickle.dump(model, open(model_path, "wb"))
+
+        return model
+
+    def evaluate_model(self, model, X_test, y_test):
+
+        y_pred = model.predict(X_test)
+        # y_prob = model.predict_proba(X_test)[:, 1]
+
         self.metrics = {
-            'cross_validation_scores': cv_scores,
-            'best_model': best_model_name,
-            'test_metrics': test_metrics,
-            'feature_importance': feature_importance.to_dict('records') if not feature_importance.empty else [],
-            'model_config': MODEL_CONFIG,
-            'training_info': {
-                'train_samples': len(X_train),
-                'validation_samples': len(X_val),
-                'test_samples': len(X_test),
-                'features': len(X_train.columns)
-            }
+            "recall": recall_score(y_test, y_pred),
+            "f1": f1_score(y_test, y_pred),
         }
+
+        print("Evaluation Metrics:", self.metrics)
         return self.metrics
-
-
+               
 def main():
     try:
         extractor = DataExtractor()
-        df = extractor.load_original_data()
+        df = extractor.load_from_database()
         preprocessor = DataPreprocessor()
         df_clean = preprocessor.clean_data(df)
-        df_encoded = preprocessor.encode_categorical_features(df_clean)
-        df_scaled = preprocessor.scale_numerical_features(df_encoded)
-        df_features = preprocessor.create_derived_features(df_scaled)
-        X, feature_cols = preprocessor.prepare_features(df_features)
-        y = df_features[FEATURE_CONFIG['target_column']][preprocessor.valid_rows]
-        X_train, X_val, X_test, y_train, y_val, y_test = preprocessor.split_data(X, y)
+        X = df_clean.drop(columns = FEATURE_CONFIG['target_column'])
+        y = df_clean[FEATURE_CONFIG['target_column']]
+        X_train, X_test, y_train, y_test = preprocessor.split_data(X, y)
         
         trainer = ModelTrainer()
-        metrics = trainer.train_all_models(X_train, y_train, X_val, y_val, X_test, y_test, preprocessor)
-        trainer.save_model(trainer.best_model, MODEL_FILE)
-        trainer.save_preprocessor(preprocessor, MODEL_FILE.parent / "preprocessor.pkl")
-        trainer.save_metrics(METRICS_FILE)
-        
-        print("=== TRAINING COMPLETED ===")
-        print(f"Best model: {trainer.best_model_name}")
-        print(f"Test F1-score: {metrics['test_metrics']['f1_score']:.4f}")
-        print(f"Test Accuracy: {metrics['test_metrics']['accuracy']:.4f}")
-        print(f"Model saved to: {MODEL_FILE}")
-        print(f"Metrics saved to: {METRICS_FILE}")
+        print(os.getcwd())
+        optim_model_path = "models/optim_model.pkl"
+        rf_model_path = "models/RF_best_model.pkl"
+        pipe_path = "models/pipe.pkl"
+
+        if os.path.exists(optim_model_path):
+            # Load and evaluate optimized model
+            with open(optim_model_path, "rb") as f:
+                model = pickle.load(f)
+            metrics = trainer.evaluate_model(model, X_test, y_test)
+
+        elif os.path.exists(rf_model_path):
+            # Load RF best model and retrain
+            with open(rf_model_path, "rb") as f:
+                model = pickle.load(f)
+            trainer.train_model(model, X_train, y_train)
+            metrics = trainer.evaluate_model(model, X_test, y_test)
+
+        elif os.path.exists(pipe_path):
+            # Load pipeline and optimize
+            with open(pipe_path, "rb") as f:
+                pipe = pickle.load(f)
+            model = trainer.hyperparameter_optimization(pipe, X_train, y_train)
+            trainer.train_model(model, X_train, y_train)
+            metrics = trainer.evaluate_model(model, X_test, y_test)
+
+        else:
+            raise FileNotFoundError("No saved models or pipeline found in 'models/'.")
+
+        print("Final metrics:", metrics)
     except Exception as e:
         logger.error(f"Error in main: {str(e)}")
 

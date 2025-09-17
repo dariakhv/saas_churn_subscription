@@ -22,9 +22,10 @@ FEATURE_CONFIG = {
         "age", "tenure", "usage_frequency", "support_calls", 
         "payment_delay", "total_spend", "last_interaction"
     ],
-    "categorical_features": [
-        "gender", "subscription_type", "contract_length"
+    "ordinal_features": [
+        "subscription_type", "contract_length"
     ],
+    "drop_features": ["gender"],
     "target_column": "churn",
     "customer_id_column": "customerid"
 }
