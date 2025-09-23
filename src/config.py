@@ -69,9 +69,8 @@ DATABASE_CONFIG = {
 }
 
 PREDICTIONS_FILE = OUTPUTS_DIR / "predictions.csv"
-DRIFT_REPORT_FILE = OUTPUTS_DIR / "drift_report.html"
 METRICS_FILE = OUTPUTS_DIR / "metrics.json"
-MODEL_FILE = MODELS_DIR / "churn_model.pkl"
+MODEL_FILE = MODELS_DIR / "RF_best_model.pkl"
 
 for directory in [DATA_DIR, MODELS_DIR, OUTPUTS_DIR]:
     directory.mkdir(exist_ok=True)

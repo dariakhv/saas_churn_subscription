@@ -54,7 +54,7 @@ class DataExtractor:
         """Check that all required columns exist in the dataframe"""
         required_columns = (
             FEATURE_CONFIG['numerical_features'] + 
-            FEATURE_CONFIG['categorical_features'] + 
+            FEATURE_CONFIG['ordinal_features'] + 
             [FEATURE_CONFIG['target_column'], FEATURE_CONFIG['customer_id_column']]
         )
         missing_columns = [col for col in required_columns if col not in df.columns]
