@@ -21,6 +21,7 @@ Software as a service (SaaS) businesses depend on recurring revenue and long-ter
 A key challenge is **customer churn**, especially in the first few months of a subscription.
 
 This analytics report explores churn dynamics through cohort analysis, retention tracking, and predictive modeling to:
+
 - Identify high-risk customers
 - Measure retention rates across cohorts and subscription tiers
 - Recommend strategies for subscriber retention and business growth
@@ -31,6 +32,7 @@ This analytics report explores churn dynamics through cohort analysis, retention
 Churn == missed opportunity for deeper customer lifetime value (LTV). By analyzing subscriber cohorts (defined by the first-time subscription month) and churn patterns, we can identify where retention investments yield the greatest impact.
 
 Strategic levers include:  
+
 - Strengthening onboarding for new subscribers  
 - Creating loyalty and engagement campaigns  
 - Offering targeted discounts or perks to at-risk customers  
